@@ -26,9 +26,11 @@ public class SigSwitch {
         SymbolLookup nativeLibC = nativeLinker.defaultLookup();
         MemorySegment signalFunctionAddress = nativeLibC.find("signal").orElseThrow(
                 () -> new RuntimeException("Failed to find signal symbol"));
-        FunctionDescriptor getSignalDescriptor = FunctionDescriptor.of(ValueLayout.JAVA_INT);
-        signalHandle = nativeLinker.downcallHandle(signalFunctionAddress, getSignalDescriptor);
-        arena = Arena.ofAuto();
+        FunctionDescriptor getSignalDescriptor = FunctionDescriptor.of(ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT, ValueLayout.ADDRESS);
+        MethodHandle rawHandle = nativeLinker.downcallHandle(signalFunctionAddress, getSignalDescriptor);
+        signalHandle = rawHandle.asType(MethodType.methodType(MemorySegment.class, int.class, MemorySegment.class));
+        arena = Arena.ofShared();
     }
 
     public void registerHandler(int sigValue, SigSwitchHandler handler) throws NoSuchMethodException,
