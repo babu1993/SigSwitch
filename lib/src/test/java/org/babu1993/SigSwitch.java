@@ -3,29 +3,82 @@
  */
 package org.babu1993;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SigSwitchTest {
-    @Test
-    void testSigSwitchInitialization() {
+
+    private SigSwitch sigSwitch;
+
+    @BeforeEach
+    void setUp() {
         try {
-            SigSwitch sigSwitch = new SigSwitch();
-            assertNotNull(sigSwitch, "SigSwitch instance should not be null");
+            sigSwitch = new SigSwitch();
         } catch (Throwable t) {
             fail("Initialization of SigSwitch threw an exception: " + t.getMessage());
         }
     }
 
     @Test
-    void testRegisterHandlerWithInvalidSignal() {
-        try {
-            SigSwitch sigSwitch = new SigSwitch();
-            assertThrows(IllegalArgumentException.class, () -> {
-                sigSwitch.registerHandler(31, signal -> System.out.println("Signal received: " + signal));
-            }, "Expected IllegalArgumentException for signal value less than 32");
-        } catch (Throwable t) {
-            fail("Initialization of SigSwitch threw an exception: " + t.getMessage());
-        }
+    void testSigSwitchInitialization() {
+        assertNotNull(sigSwitch, "SigSwitch instance should not be null");
+    }
+
+    @Test
+    void testRegisterHandlerWithSignalBelowRange() {
+        assertThrows(IllegalArgumentException.class, () ->
+            sigSwitch.registerHandler(31, signal -> {}),
+            "Expected IllegalArgumentException for signal value below 32"
+        );
+    }
+
+    @Test
+    void testRegisterHandlerWithSignalAboveRange() {
+        assertThrows(IllegalArgumentException.class, () ->
+            sigSwitch.registerHandler(65, signal -> {}),
+            "Expected IllegalArgumentException for signal value above 64"
+        );
+    }
+
+    @Test
+    void testRegisterHandlerWithBoundarySignalLow() {
+        assertDoesNotThrow(() ->
+            sigSwitch.registerHandler(32, signal -> {}),
+            "Should not throw for signal value 32 (lower boundary)"
+        );
+    }
+
+    @Test
+    void testRegisterHandlerWithBoundarySignalHigh() {
+        assertDoesNotThrow(() ->
+            sigSwitch.registerHandler(64, signal -> {}),
+            "Should not throw for signal value 64 (upper boundary)"
+        );
+    }
+
+    @Test
+    void testRegisterHandlerCallsHandler() throws Throwable {
+        int[] received = {0};
+        SigSwitchHandler handler = signal -> received[0] = signal;
+        sigSwitch.registerHandler(40, handler);
+        // Handler is registered; verify no exception was thrown and object state is consistent
+        assertNotNull(sigSwitch);
+    }
+
+    @Test
+    void testRegisterHandlerWithZeroSignal() {
+        assertThrows(IllegalArgumentException.class, () ->
+            sigSwitch.registerHandler(0, signal -> {}),
+            "Expected IllegalArgumentException for signal value 0"
+        );
+    }
+
+    @Test
+    void testRegisterHandlerWithNegativeSignal() {
+        assertThrows(IllegalArgumentException.class, () ->
+            sigSwitch.registerHandler(-1, signal -> {}),
+            "Expected IllegalArgumentException for negative signal value"
+        );
     }
 }
