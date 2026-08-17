@@ -8,7 +8,12 @@
 plugins {
     // Apply the java-library plugin for API and implementation separation.
     id 'java-library'
+    // Apply the maven-publish plugin to support publishing packages.
+    id 'maven-publish'
 }
+
+group = 'com.github.babu1993'
+version = '1.0.0'
 
 repositories {
     // Use Maven Central for resolving dependencies.
@@ -33,11 +38,13 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
     }
+    withSourcesJar()
 }
 
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
 }
 
 tasks.named('jar') {
@@ -49,4 +56,23 @@ tasks.named('jar') {
         )
     }
     archiveFileName.set('SigSwitch.jar')
+}
+
+// Configures the publish task for GitHub Packages
+publishing {
+    publications {
+        gpr(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/babu1993/SigSwitch")
+            credentials {
+                username = System.getenv("USERNAME")
+                password = System.getenv("TOKEN")
+            }
+        }
+    }
 }
