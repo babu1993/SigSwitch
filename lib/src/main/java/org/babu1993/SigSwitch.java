@@ -6,6 +6,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -16,7 +17,9 @@ public class SigSwitch implements AutoCloseable {
     private static final StructLayout sigAction = MemoryLayout.structLayout(
             ValueLayout.ADDRESS.withName("sa_handler"),
             ValueLayout.JAVA_INT.withName("sa_flags"),
-            MemoryLayout.sequenceLayout(16, ValueLayout.JAVA_INT).withName("sa_mask")
+            MemoryLayout.paddingLayout(4), // 4-byte alignment padding required on 64-bit Linux
+            ValueLayout.ADDRESS.withName("sa_restorer"),
+            MemoryLayout.sequenceLayout(128, ValueLayout.JAVA_BYTE).withName("sa_mask") // 128-byte sigset_t
     );
     private static final VarHandle saHandlerHandleNew = sigAction.varHandle(
             MemoryLayout.PathElement.groupElement("sa_handler"));
@@ -63,7 +66,7 @@ public class SigSwitch implements AutoCloseable {
     private int getDefaultSignal(){
         MemorySegment sigActionOldSegment = this.arena.allocate(sigAction);
         for(int signal=36; signal<65; signal++ ){
-            int status=-1;
+            int status;
             if(this.registeredSignal.contains(new SignalHandlerInfo(signal, ""))){
                 continue;
             }
@@ -104,11 +107,11 @@ public class SigSwitch implements AutoCloseable {
         MemorySegment callback = this.nativeLinker.upcallStub(boundHandle,
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT), arena);
         SigSwitch.saHandlerHandleNew.set(sigActionNewSegment, 0L, callback);
-        int status = -1;
+        int status;
         try{
 
             status = (int) this.signalHandle.invokeExact(sigValue, sigActionNewSegment, MemorySegment.NULL);
-            logger.info("Signal handler registered for signal: " + sigValue);
+            logger.fine("Signal handler registered for signal: " + sigValue);
         }
         catch(Throwable t){
             throw new SigSwitchCallException("Failed to register signal handler: " + t.getMessage());
@@ -158,11 +161,13 @@ public class SigSwitch implements AutoCloseable {
             throw new SigSwitchCallException("Failed to unregister signal handler: OS returned status " + status);
         }
         this.registeredSignal.remove(signalHandlerInfo);
+        logger.info("Signal handler unregistered for signal: " + signal);
     }
 
     private SignalHandlerInfo registerHandler(Method method, Object obj)
             throws IllegalAccessException, SigSwitchCallException, NoSuchMethodException {
         int availableSignal = this.getDefaultSignal();
+        logger.fine("Trying registration with signal:" + availableSignal);
         return this.registerHandler(availableSignal, obj, method);
     }
 
@@ -171,6 +176,10 @@ public class SigSwitch implements AutoCloseable {
         Method[] methods = obj.getClass().getMethods();
         for(Method method: methods){
             if(method.isAnnotationPresent(SignalHandler.class)){
+                if(Modifier.isStatic(method.getModifiers())){
+                    logger.info("Signal handler method " + method.getName() + " is static. Skipping registration.");
+                    continue;
+                }
                 SignalHandlerInfo signalHandlerInfo = this.registerHandler(method, obj);
                 logger.info("Signal handler registered for signal: " + signalHandlerInfo.signal() +
                         " with handler: " + signalHandlerInfo.name());
