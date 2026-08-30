@@ -64,6 +64,17 @@ publishing {
         gpr(MavenPublication) {
             from components.java
             artifactId = 'sigswitch'
+            pom {
+                name = 'SigSwitch'
+                description = 'SigSwitch Java Library'
+                url = 'https://github.com/babu1993/SigSwitch'
+
+                scm {
+                    connection = 'scm:git:git://github.com/babu1993/SigSwitch.git'
+                    developerConnection = 'scm:git:ssh://github.com/babu1993/SigSwitch.git'
+                    url = 'https://github.com/babu1993/SigSwitch'
+                }
+            }
         }
     }
     repositories {
